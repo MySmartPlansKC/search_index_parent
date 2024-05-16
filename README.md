@@ -14,10 +14,9 @@ The Search Index Parent is a Python script designed to create and manage `search
 
 ### Production
 For production use:
-1. Place the executable file in the base directory of the project you are processing.
-   - For example, to use this for a "Closeout", place the executable file in the `Docs\` folder of the Auto play media studio project.
-2. Run the executable file.
-3. Ensure that there are no `search_index.xml` files already present in the directories, as this version does not delete any existing `search_index.xml` files and will append results to any existing file.
+1. Place the executable file `search_index_parent` in the `Path_to_your_closeout\CD_Root\AutoPlay` folder.
+2. Ensure that there are no `search_index.xml` files already present in the directories, as this version does not delete any existing `search_index.xml` files and will append results to any existing file.
+3. Run the executable file.
 4. Upon successful completion, remove the executable file and the log file from the directory.
 
 ### Author

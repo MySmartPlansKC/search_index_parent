@@ -4,6 +4,7 @@
 ### Added
 - Configured logging for more detailed logging information
 - Special path for "NO CLASSIFICATION" folder to search its subfolders
+- Updated file processing for more performance.
 
 ### Fixed
 - Incorrect logging notations.

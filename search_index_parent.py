@@ -1,11 +1,12 @@
 # search_index_parent
 
-import fitz  # PyMuPDF
 import logging
 import os
 import shutil
 import sys
 from xml.sax.saxutils import escape
+
+import fitz  # PyMuPDF
 
 # Versioning
 __version__ = "1.1.0"
@@ -24,25 +25,33 @@ HARD_CODED_PATH_TO_FILES = r"E:\Testing Directory\Docs"
 
 
 def main(args):
-    initialize(args)
-    txt_temp_path = create_temp_directory(path_to_files)
+    try:
+        initialize(args)
+        txt_temp_path = create_temp_directory(path_to_files)
 
-    # Create the main search index file in the root directory
-    accumulated_index_file_path = os.path.join(path_to_files, "search_index.xml")
-    with open(accumulated_index_file_path, 'w', encoding='utf-8') as accumulated_writer:
-        accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        accumulated_writer.write('<files>\n')
+        # Create the main search index file in the root directory
+        accumulated_index_file_path = os.path.join(path_to_files, "search_index.xml")
+        with open(accumulated_index_file_path, 'w', encoding='utf-8') as accumulated_writer:
+            accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
+            accumulated_writer.write('<files>\n')
 
-        # Process the root directory
-        process_files_in_directory(path_to_files, txt_temp_path, accumulated_writer)
+            # Process the root directory
+            process_files_in_directory(path_to_files, txt_temp_path, accumulated_writer)
 
-        # Traverse and process subdirectories
-        traverse_main_folders(path_to_files, txt_temp_path, accumulated_writer)
+            # Traverse and process subdirectories
+            traverse_main_folders(path_to_files, txt_temp_path, accumulated_writer)
 
-        accumulated_writer.write('</files>\n')
+            accumulated_writer.write('</files>\n')
 
-    clean_up_temp_directory(txt_temp_path)
-    logging.info("All directories processed successfully.")
+        clean_up_temp_directory(txt_temp_path)
+        logging.info("All directories processed successfully.")
+
+    except Exception as e:
+        logging.error(f"An error occurred: {e}", exc_info=True)
+        print(f"An error occurred: {e}")
+
+    finally:
+        input("Press Enter to close...")
 
 
 def initialize(args):
@@ -51,7 +60,8 @@ def initialize(args):
         # Hard-coded paths for testing
         path_to_files = HARD_CODED_PATH_TO_FILES
     else:
-        path_to_files = os.getcwd()
+        # path_to_files = os.getcwd()
+        path_to_files = os.path.join(os.getcwd(), "Docs")
     initialize_logging()
     logging.info(f"search_index_parent Version: {__version__}")
 
@@ -129,7 +139,8 @@ def traverse_and_process_directory(directory_path, txt_temp_path, writer, includ
                 with open(index_file_path, 'w', encoding='utf-8') as sub_writer:
                     sub_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
                     sub_writer.write('<files>\n')
-                    traverse_and_process_directory(sub_directory_path, txt_temp_path, sub_writer, include_subdirectories)
+                    traverse_and_process_directory(sub_directory_path, txt_temp_path, sub_writer,
+                                                   include_subdirectories)
                     sub_writer.write('</files>\n')
                 logging.info(f"Created/Updated search index for {os.path.basename(sub_directory_path)}")
 
@@ -166,14 +177,10 @@ def process_file(file_path, txt_temp_path, writer):
         # Add more mappings as needed
     }
 
-    # func = processing_functions.get(file_extension, default_file_processing)
-    func = processing_functions.get(file_extension)
+    func = processing_functions.get(file_extension, lambda f, t, w: logging.warning(
+        f"Unhandled file extension: {file_extension} for file {f}"))
     func(file_path, txt_temp_path, writer)
     processed_files.add(file_path)
-
-
-# def default_file_processing(file_path, txt_temp_path, writer):
-#     logging.info(f"Skipping File: {os.path.basename(file_path)}")
 
 
 def add_file_name_to_search_index(file_path, txt_temp_path, writer):

@@ -1,0 +1,9 @@
+Quick Start Guide for Search Index Parent
+
+- Place the `search_index_parent` file in your `Path_to_your_closeout\CD_Root\AutoPlay` folder.
+- Make sure that all documents to be indexed are located in the `\Docs` folder adjacent to `AutoPlay`.
+- Run the executable by double-clicking on it. The application will process all compatible files within the `Docs` folder and create an XML index.
+- The XML files will be saved in the `Docs` folder and their subsequent subfolders, detailing the structure and content of the indexed documents.
+- Remove the `search_index_parent` file and `search_builder_processing_log.txt` file upon completion
+
+This setup ensures that your documents are automatically indexed when the executable is run.
