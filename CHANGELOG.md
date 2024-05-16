@@ -1,4 +1,10 @@
+# Search Index Parent
+
 # Changelog
+
+## [1.1.1] - 2024-05-16
+### Changed
+- Reconfigured search_index.xml aggregation for better accuracy
 
 ## [1.1.0] - 2024-05-15
 ### Added
