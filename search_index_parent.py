@@ -8,8 +8,8 @@ import sys
 from xml.sax.saxutils import escape
 
 # Versioning
-__version__ = "1.1.0"
-# pyinstaller --onefile --name search_index_parent-V1.1.0 search_index_parent.py
+__version__ = "1.1.2"
+# pyinstaller --onefile --name search_index_parent-V1.1.2 search_index_parent.py
 
 # Global variables
 log_file_path = ""
