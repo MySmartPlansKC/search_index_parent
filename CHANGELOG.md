@@ -2,9 +2,17 @@
 
 # Changelog
 
+## [1.1.2] - 2024-05-16
+### Added
+- Added configuration to resume if program gets terminated before completing.
+
+---
+
 ## [1.1.1] - 2024-05-16
 ### Changed
-- Reconfigured search_index.xml aggregation for better accuracy
+- Reconfigured search_index.xml aggregation for better accuracy.
+
+---
 
 ## [1.1.0] - 2024-05-15
 ### Added
@@ -14,6 +22,8 @@
 
 ### Fixed
 - Incorrect logging notations.
+
+---
 
 ## [1.0.0] - 2024-05-15
 ### Added
