@@ -3,6 +3,10 @@
 # Changelog
 
 ## [1.1.5] - 2024-05-17
+### Added
+- Added file lock for system process to ensure file access
+- Moved marker files to their own text file for better separation of concerns.
+
 ### Changed
 - Adjusted logging to display the destination without the filename appended to the end.
 - Removed excessive messages for cleaner production runs

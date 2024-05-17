@@ -1,5 +1,6 @@
 # search_index_parent
 
+import fcntl
 import fitz  # PyMuPDF
 import logging
 import os
@@ -14,6 +15,7 @@ __version__ = "1.1.5"
 
 # Global variables
 log_file_path = ""
+marker_log_file_path = ""
 path_to_files = ""
 processed_files = set()
 
@@ -21,9 +23,13 @@ processed_files = set()
 USE_HARD_CODED_PATHS = False
 HARD_CODED_PATH_TO_FILES = r"E:\Testing Directory\Docs"
 
+LOCK_FILE = "/tmp/search_index_parent.lock"  # Path to the lock file
+
 
 def main(args):
+    # lock_file = open(LOCK_FILE, 'w')
     try:
+        # fcntl.lockf(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
         initialize(args)
         txt_temp_path = create_temp_directory(path_to_files)
         load_processed_files(txt_temp_path)
@@ -45,10 +51,14 @@ def main(args):
 
         # clean_up_temp_directory(txt_temp_path)
 
+    except OSError as e:
+        logging.error(f"Script is already running: {e}")
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=True)
 
     finally:
+        # fcntl.lockf(lock_file, fcntl.LOCK_UN)
+        # lock_file.close()
         # This prompt will be shown regardless of whether an exception was raised
         input("Press Enter to close this window...")
 
@@ -65,8 +75,9 @@ def initialize(args):
 
 
 def initialize_logging():
-    global log_file_path
+    global log_file_path, marker_log_file_path
     log_file_path = os.path.join(path_to_files, "search_builder_processing_log.txt")
+    marker_log_file_path = os.path.join(path_to_files, "processed_files_log.txt")
     logging.basicConfig(
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
@@ -102,13 +113,19 @@ def create_temp_directory(directory_path):
 
 def load_processed_files(txt_temp_path):
     global processed_files
-    processed_files = {f for f in os.listdir(txt_temp_path)}
+    if os.path.exists(marker_log_file_path):
+        with open(marker_log_file_path, 'r') as f:
+            processed_files = {line.strip() for line in f}
     # logging.info(f"Loaded processed files: {processed_files}")
 
 
 def traverse_main_folders(root_path, txt_temp_path, accumulated_writer):
+    skip_folders = {"Airside Civil", "Demolition", "Garage", "Landside Civil"}
     for item in os.listdir(root_path):
         item_path = os.path.join(root_path, item)
+        if item in skip_folders:
+            logging.info(f"Skipping directory due to filter: {item}")
+            continue
         if os.path.isdir(item_path) and item != "txtTemp":
             logging.info(f"Processing directory: {item_path}")
             if item.lower() == "no classification":
@@ -203,7 +220,8 @@ def process_files_in_directory(directory_path, txt_temp_path, writer):
         file_path = os.path.join(directory_path, file_name)
         marker_file_path = os.path.join(txt_temp_path, file_name + '.processed')
 
-        if file_name.lower() == "search_index.xml" or os.path.exists(marker_file_path):
+        # if file_name.lower() == "search_index.xml" or os.path.exists(marker_file_path):
+        if file_name.lower() == "search_index.xml" or file_name in processed_files:
             logging.info(f"Skipping File: {file_name}")
             continue  # Skip the search index file itself
 
@@ -211,6 +229,10 @@ def process_files_in_directory(directory_path, txt_temp_path, writer):
             process_file(file_path, txt_temp_path, writer)
             with open(marker_file_path, 'w') as marker_file:
                 marker_file.write('')
+            # Write to marker log file
+            with open(marker_log_file_path, 'a') as marker_log_file:
+                marker_log_file.write(file_name + '\n')
+
             # logging.info(f"Processed and marked: {file_name}")
 
 
@@ -223,7 +245,8 @@ def process_file(file_path, txt_temp_path, writer):
     # time.sleep(2)
 
     # Check for the existence of a marker file
-    if os.path.exists(marker_file_path):
+    # if os.path.exists(marker_file_path):
+    if file_name in processed_files:
         print(f"Skipping already processed file: {file_name}")
         return
 
