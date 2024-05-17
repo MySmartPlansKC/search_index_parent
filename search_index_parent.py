@@ -5,11 +5,12 @@ import logging
 import os
 import shutil
 import sys
+import time
 from xml.sax.saxutils import escape
 
 # Versioning
-__version__ = "1.1.2"
-# pyinstaller --onefile --name search_index_parent-V1.1.2 search_index_parent.py
+__version__ = "1.1.5"
+# pyinstaller --onefile --name search_index_parent-V1.1.5 search_index_parent.py
 
 # Global variables
 log_file_path = ""
@@ -22,28 +23,34 @@ HARD_CODED_PATH_TO_FILES = r"E:\Testing Directory\Docs"
 
 
 def main(args):
-    initialize(args)
-    txt_temp_path = create_temp_directory(path_to_files)
+    try:
+        initialize(args)
+        txt_temp_path = create_temp_directory(path_to_files)
+        load_processed_files(txt_temp_path)
+        accumulated_index_file_path = os.path.join(path_to_files, "search_index.xml")
 
-    # Load already processed files from txtTemp
-    load_processed_files(txt_temp_path)
+        # Check if file exists and has content; otherwise, initialize it.
+        if not os.path.exists(accumulated_index_file_path) or os.stat(accumulated_index_file_path).st_size == 0:
+            with open(accumulated_index_file_path, 'w', encoding='utf-8') as accumulated_writer:
+                accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
+                accumulated_writer.write('<files>\n')
+                traverse_main_folders(path_to_files, txt_temp_path, accumulated_writer)
+                accumulated_writer.write('</files>\n')
 
-    # Create the main search index file in the root directory
-    accumulated_index_file_path = os.path.join(path_to_files, "search_index.xml")
-    with open(accumulated_index_file_path, 'w', encoding='utf-8') as accumulated_writer:
-        accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        accumulated_writer.write('<files>\n')
+        # Open in append mode to prevent overwriting
+        with open(accumulated_index_file_path, 'a', encoding='utf-8') as accumulated_writer:
+            traverse_main_folders(path_to_files, txt_temp_path, accumulated_writer)
 
-        # Process the root directory
-        # process_files_in_directory(path_to_files, txt_temp_path, accumulated_writer)
+        logging.info("All directories processed successfully.")
 
-        # Traverse and process subdirectories
-        traverse_main_folders(path_to_files, txt_temp_path, accumulated_writer)
+        # clean_up_temp_directory(txt_temp_path)
 
-        accumulated_writer.write('</files>\n')
+    except Exception as e:
+        logging.error(f"An error occurred: {e}", exc_info=True)
 
-    clean_up_temp_directory(txt_temp_path)
-    logging.info("All directories processed successfully.")
+    finally:
+        # This prompt will be shown regardless of whether an exception was raised
+        input("Press Enter to close this window...")
 
 
 def initialize(args):
@@ -71,6 +78,22 @@ def initialize_logging():
     )
 
 
+def get_path_tail(path):
+    # This function returns the last two parts of the path
+    parts = path.split(os.sep)
+
+    # Exclude the filename if it exists
+    if os.path.isfile(path):
+        parts = parts[:-1]
+
+    # Return the last two directory parts
+    if len(parts) >= 2:
+        return os.path.join(parts[-2], parts[-1])
+    elif len(parts) == 1:
+        return parts[0]
+    return ""
+
+
 def create_temp_directory(directory_path):
     txt_temp_path = os.path.join(directory_path, "txtTemp")
     os.makedirs(txt_temp_path, exist_ok=True)
@@ -79,9 +102,8 @@ def create_temp_directory(directory_path):
 
 def load_processed_files(txt_temp_path):
     global processed_files
-    if os.path.exists(txt_temp_path):
-        for file_name in os.listdir(txt_temp_path):
-            processed_files.add(os.path.join(txt_temp_path, file_name))
+    processed_files = {f for f in os.listdir(txt_temp_path)}
+    # logging.info(f"Loaded processed files: {processed_files}")
 
 
 def traverse_main_folders(root_path, txt_temp_path, accumulated_writer):
@@ -97,58 +119,69 @@ def traverse_main_folders(root_path, txt_temp_path, accumulated_writer):
 
 
 def process_main_folder(directory_path, txt_temp_path, accumulated_writer):
-    processed_files.clear()
+    # processed_files.clear()
     index_file_path = os.path.join(directory_path, "search_index.xml")
-    with open(index_file_path, 'w', encoding='utf-8') as writer:
-        writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        writer.write('<files>\n')
+    needs_header = not os.path.exists(index_file_path) or os.stat(index_file_path).st_size == 0
+
+    with open(index_file_path, 'a', encoding='utf-8') as writer:
+        if needs_header:
+            writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
+            writer.write('<files>\n')
+
         traverse_and_process_directory(directory_path, txt_temp_path, writer)
-        writer.write('</files>\n')
+
+        if needs_header:
+            writer.write('</files>\n')
 
     logging.info(f"Created/Updated search index for {os.path.basename(directory_path)}")
-
-    # Add the contents of this search index to the accumulated search index
-    with open(index_file_path, 'r', encoding='utf-8') as reader:
-        for line in reader:
-            if line.strip() not in ('<?xml version="1.0" encoding="utf-8"?>', '<files>', '</files>'):
-                accumulated_writer.write(line)
+    if needs_header:
+        append_to_accumulated_index(index_file_path, accumulated_writer)
 
 
 def process_no_classification_folder(directory_path, txt_temp_path, accumulated_writer):
     no_class_accumulated_path = os.path.join(directory_path, "search_index.xml")
-    with open(no_class_accumulated_path, 'w', encoding='utf-8') as no_class_accumulated_writer:
-        no_class_accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        no_class_accumulated_writer.write('<files>\n')
+    needs_header = not os.path.exists(no_class_accumulated_path) or os.stat(no_class_accumulated_path).st_size == 0
+
+    with open(no_class_accumulated_path, 'a', encoding='utf-8') as no_class_accumulated_writer:
+        if needs_header:
+            no_class_accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
+            no_class_accumulated_writer.write('<files>\n')
 
         for sub_directory in os.listdir(directory_path):
             sub_directory_path = os.path.join(directory_path, sub_directory)
             if os.path.isdir(sub_directory_path):
-                process_sub_folder(sub_directory_path, txt_temp_path, no_class_accumulated_writer, include_subdirectories=True)
+                process_sub_folder(sub_directory_path, txt_temp_path, no_class_accumulated_writer,
+                                   include_subdirectories=True)
 
-        no_class_accumulated_writer.write('</files>\n')
+        if needs_header:
+            no_class_accumulated_writer.write('</files>\n')
 
-    logging.info(f"Created/Updated search index for {os.path.basename(directory_path)} (NO CLASSIFICATION)")
-
-# Add the contents of this search index to the accumulated search index
-    with open(no_class_accumulated_path, 'r', encoding='utf-8') as reader:
-        for line in reader:
-            if line.strip() not in ('<?xml version="1.0" encoding="utf-8"?>', '<files>', '</files>'):
-                accumulated_writer.write(line)
+        logging.info(f"Created/Updated search index for {os.path.basename(directory_path)} (NO CLASSIFICATION)")
+        append_to_accumulated_index(no_class_accumulated_path, accumulated_writer)
 
 
 def process_sub_folder(directory_path, txt_temp_path, accumulated_writer, include_subdirectories=False):
-    processed_files.clear()
+    # processed_files.clear()
     sub_index_file_path = os.path.join(directory_path, "search_index.xml")
-    with open(sub_index_file_path, 'w', encoding='utf-8') as sub_writer:
-        sub_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
-        sub_writer.write('<files>\n')
+    needs_header = not os.path.exists(sub_index_file_path) or os.stat(sub_index_file_path).st_size == 0
+
+    with open(sub_index_file_path, 'a', encoding='utf-8') as sub_writer:
+        if needs_header:
+            sub_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
+            sub_writer.write('<files>\n')
+
         traverse_and_process_directory(directory_path, txt_temp_path, sub_writer, include_subdirectories)
-        sub_writer.write('</files>\n')
+
+        if needs_header:
+            sub_writer.write('</files>\n')
 
     logging.info(f"Created/Updated search index for {os.path.basename(directory_path)}")
+    if needs_header:
+        append_to_accumulated_index(sub_index_file_path, accumulated_writer)
 
-    # Add the contents of this search index to the accumulated search index
-    with open(sub_index_file_path, 'r', encoding='utf-8') as reader:
+
+def append_to_accumulated_index(index_file_path, accumulated_writer):
+    with open(index_file_path, 'r', encoding='utf-8') as reader:
         for line in reader:
             if line.strip() not in ('<?xml version="1.0" encoding="utf-8"?>', '<files>', '</files>'):
                 accumulated_writer.write(line)
@@ -168,33 +201,44 @@ def traverse_and_process_directory(directory_path, txt_temp_path, writer, includ
 def process_files_in_directory(directory_path, txt_temp_path, writer):
     for file_name in os.listdir(directory_path):
         file_path = os.path.join(directory_path, file_name)
-        if file_name.lower() == "search_index.xml":
+        marker_file_path = os.path.join(txt_temp_path, file_name + '.processed')
+
+        if file_name.lower() == "search_index.xml" or os.path.exists(marker_file_path):
             logging.info(f"Skipping File: {file_name}")
             continue  # Skip the search index file itself
 
         if os.path.isfile(file_path):
-            if file_path not in processed_files:
-                process_file(file_path, txt_temp_path, writer)
-                processed_files.add(file_path)
+            process_file(file_path, txt_temp_path, writer)
+            with open(marker_file_path, 'w') as marker_file:
+                marker_file.write('')
+            # logging.info(f"Processed and marked: {file_name}")
 
 
 def process_file(file_path, txt_temp_path, writer):
-    if file_path in processed_files:
+    file_name = os.path.basename(file_path)
+    path_tail = get_path_tail(file_path)
+    marker_file_path = os.path.join(txt_temp_path, file_name + '.processed')
+
+    # DEBUG timer
+    # time.sleep(2)
+
+    # Check for the existence of a marker file
+    if os.path.exists(marker_file_path):
+        print(f"Skipping already processed file: {file_name}")
         return
 
-    file_name = os.path.basename(file_path)
     file_extension = os.path.splitext(file_path)[1].lower()
 
     if file_extension == ".pdf":
-        logging.info(f"Processing PDF File: {file_name}")
+        logging.info(f"Processing PDF File: {file_name} in {path_tail}")
         convert_pdf_to_text(file_path, txt_temp_path, writer)
         # add_file_name_to_search_index(file_path, writer)
     elif file_extension in [".log", ".txt"]:
-        logging.info(f"Processing Text/Log File: {file_name}")
+        logging.info(f"Processing Text/Log File: {file_name} in {path_tail}")
         process_text_file(file_path, txt_temp_path, writer)
         # add_file_name_to_search_index(file_path, writer)
     elif file_extension in [".mp4", ".dwg", ".tif", ".xls", ".xlsx", ".doc", ".docx"]:
-        logging.info(f"Adding Filename: {file_name}")
+        logging.info(f"Adding Filename: {file_name} in {path_tail}")
         add_file_name_to_search_index(file_path, writer)
     else:
         logging.info(f"Skipping File: {file_name}")
@@ -256,6 +300,13 @@ def convert_pdf_to_text(pdf_file_path, txt_temp_path, writer):
     text_file_name = os.path.splitext(os.path.basename(pdf_file_path))[0] + ".txt"
     text_file_path = os.path.join(txt_temp_path, text_file_name)
 
+    if not os.path.exists(pdf_file_path):
+        logging.error(f"PDF file does not exist: {pdf_file_path}")
+        return
+    if os.stat(pdf_file_path).st_size == 0:
+        logging.error(f"PDF file is empty: {pdf_file_path}")
+        return
+
     try:
         pdf_document = fitz.open(pdf_file_path)
         with open(text_file_path, 'w', encoding='utf-8') as text_file:
@@ -271,12 +322,9 @@ def convert_pdf_to_text(pdf_file_path, txt_temp_path, writer):
                 writer.write("\t\t</page>\n")
             writer.write("\t</file>\n")
         pdf_document.close()
-        if not os.path.exists(text_file_path):
-            logging.error(f"Failed to convert PDF to text: {os.path.basename(pdf_file_path)}")
-        # else:
-        #     logging.info(f"Converted PDF to text: {os.path.basename(pdf_file_path)}")
+
     except Exception as e:
-        logging.error(f"Exception in convert_pdf_to_text: {e}")
+        logging.error(f"Exception in convert_pdf_to_text: {e}", exc_info=True)
 
 
 def clean_up_temp_directory(txt_temp_path):

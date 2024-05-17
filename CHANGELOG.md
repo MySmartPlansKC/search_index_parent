@@ -2,6 +2,30 @@
 
 # Changelog
 
+## [1.1.5] - 2024-05-17
+### Changed
+- Adjusted logging to display the destination without the filename appended to the end.
+- Removed excessive messages for cleaner production runs
+
+---
+
+## [1.1.4] - 2024-05-17
+### Added
+- Detailed logging to error messages for better tracking
+- Log designation to track the current folder being processed
+
+---
+
+## [1.1.3] - 2024-05-16
+
+### Added
+- Added a processed flag to avoid counting/missing items
+
+### Fixed
+- Corrected bug that was overwriting the search_index.xml
+
+---
+
 ## [1.1.2] - 2024-05-16
 ### Added
 - Added configuration to resume if program gets terminated before completing.
