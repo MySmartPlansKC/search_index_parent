@@ -3,12 +3,13 @@
 import fitz  # PyMuPDF
 import logging
 import os
+import re
 import shutil
 from xml.sax.saxutils import escape
 
 # Versioning
-__version__ = "1.1.5"
-# pyinstaller --onefile --name search_index_parent-V1.1.5 search_index_parent.py
+__version__ = "1.2.0"
+# pyinstaller --onefile --name search_index_parent-V1.2.0 search_index_parent.py
 
 # Global variables
 log_file_path = ""
@@ -17,7 +18,7 @@ path_to_files = ""
 
 # Toggle for testing
 USE_HARD_CODED_PATHS = True
-# HARD_CODED_PATH_TO_FILES = r"E:\Testing Directory\Docs"
+# HARD_CODED_PATH_TO_FILES = r"E:\Python\xPDFTestFiles\searchIndexFiles"
 HARD_CODED_PATH_TO_FILES = r"R:\_Nick\KCI Closeout\KCI Closeout\KCI Closeout\CD_Root\AutoPlay\Docs"
 
 
@@ -27,7 +28,6 @@ def main():
         processed_files = load_processed_files()
         accumulated_index_file_path = os.path.join(path_to_files, "search_index.xml")
 
-        # Check if file exists and has content; otherwise, initialize it.
         if not os.path.exists(accumulated_index_file_path) or os.stat(accumulated_index_file_path).st_size == 0:
             with open(accumulated_index_file_path, 'w', encoding='utf-8') as accumulated_writer:
                 accumulated_writer.write('<?xml version="1.0" encoding="utf-8"?>\n')
@@ -35,9 +35,9 @@ def main():
                 traverse_main_folders(path_to_files, accumulated_writer, processed_files)
                 accumulated_writer.write('</files>\n')
 
-        # Open in append mode to prevent overwriting
-        with open(accumulated_index_file_path, 'a', encoding='utf-8') as accumulated_writer:
-            traverse_main_folders(path_to_files, accumulated_writer, processed_files)
+        else:
+            with open(accumulated_index_file_path, 'a', encoding='utf-8') as accumulated_writer:
+                traverse_main_folders(path_to_files, accumulated_writer, processed_files)
 
         logging.info("All directories processed successfully.")
 
@@ -46,15 +46,10 @@ def main():
     except Exception as e:
         logging.error(f"An error occurred: {e}", exc_info=True)
 
-    finally:
-        # This prompt will be shown regardless of whether an exception was raised
-        input("Press Enter to close this window...")
-
 
 def initialize():
     global path_to_files
     if USE_HARD_CODED_PATHS:
-        # Hard-coded paths for testing
         path_to_files = HARD_CODED_PATH_TO_FILES
     else:
         path_to_files = os.getcwd()
@@ -63,29 +58,38 @@ def initialize():
 
 
 def initialize_logging():
-    global log_file_path, marker_log_file_path
-    log_file_path = os.path.join(path_to_files, "search_builder_processing_log.txt")
+    global marker_log_file_path
+
     marker_log_file_path = os.path.join(path_to_files, "processed_files_log.txt")
+
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+
     logging.basicConfig(
-        level=logging.INFO,
+        level=logging.DEBUG,
         format='%(asctime)s - %(levelname)s - %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S',
-        handlers=[
-            logging.FileHandler(log_file_path, encoding='utf-8'),
-            logging.StreamHandler()
-        ]
+        handlers=[console_handler]
     )
 
 
+def setup_error_logging():
+    global log_file_path
+    if not log_file_path:
+        log_file_path = os.path.join(path_to_files, "search_builder_error_log.txt")
+
+    file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+    file_handler.setLevel(logging.ERROR)
+
+    logging.getLogger().addHandler(file_handler)
+
+
 def get_path_tail(path):
-    # This function returns the last two parts of the path
     parts = path.split(os.sep)
 
-    # Exclude the filename if it exists
     if os.path.isfile(path):
         parts = parts[:-1]
 
-    # Return the last two directory parts
     if len(parts) >= 2:
         return os.path.join(parts[-2], parts[-1])
     elif len(parts) == 1:
@@ -102,7 +106,7 @@ def load_processed_files():
 
 
 def traverse_main_folders(root_path, accumulated_writer, processed_files):
-    skip_folders = {"Airside Civil", "Demolition", "Garage", "Landside Civil"}
+    skip_folders = {}
     for item in os.listdir(root_path):
         item_path = os.path.join(root_path, item)
         if item in skip_folders:
@@ -118,7 +122,6 @@ def traverse_main_folders(root_path, accumulated_writer, processed_files):
 
 
 def process_main_folder(directory_path, accumulated_writer, processed_files):
-    # processed_files.clear()
     index_file_path = os.path.join(directory_path, "search_index.xml")
     needs_header = not os.path.exists(index_file_path) or os.stat(index_file_path).st_size == 0
 
@@ -138,11 +141,7 @@ def process_main_folder(directory_path, accumulated_writer, processed_files):
 
 
 def process_no_classification_folder(directory_path, accumulated_writer, processed_files):
-    skip_folders = {"ASIs and Bulletins", "Audit Files", "Change Orders", "Communications", "Contract Docs",
-                    "Correspondence", "Design Documents", "Environmental", "Financial",
-                    "Historical Drawings and Specifications", "Meeting Minutes", "ORAT Reference Library",
-                    "Owner Documents", "Plans", "Plans for ARFF", "PMC Memos", "Project Information",
-                    "Reference Library", "Reports"}
+    skip_folders = {}
     no_class_accumulated_path = os.path.join(directory_path, "search_index.xml")
     needs_header = not os.path.exists(no_class_accumulated_path) or os.stat(no_class_accumulated_path).st_size == 0
 
@@ -211,10 +210,13 @@ def process_files_in_directory(directory_path, writer, processed_files):
             continue  # Skip the search index file itself
 
         if os.path.isfile(file_path):
-            process_file(file_path, writer, relative_file_path, processed_files)
+            if relative_file_path not in processed_files:
+                process_file(file_path, writer, relative_file_path, processed_files)
 
-            with open(marker_log_file_path, 'a', encoding='utf-8') as marker_log_file:
-                marker_log_file.write(relative_file_path + '\n')
+                # logging.info(f"Processed file: {relative_file_path}")
+                with open(marker_log_file_path, 'a', encoding='utf-8') as marker_log_file:
+                    marker_log_file.write(relative_file_path + '\n')
+                    processed_files.add(relative_file_path)
 
 
 def process_file(file_path, writer, relative_file_path, processed_files):
@@ -230,7 +232,6 @@ def process_file(file_path, writer, relative_file_path, processed_files):
     if file_extension == ".pdf":
         logging.info(f"Processing PDF File: {file_name} in {path_tail}")
         convert_pdf_to_text(file_path, writer)
-        # add_file_name_to_search_index(file_path, writer)
     elif file_extension in [".log", ".txt"]:
         logging.info(f"Processing Text/Log File: {file_name} in {path_tail}")
         process_text_file(file_path, writer)
@@ -267,27 +268,22 @@ def get_relative_path(base_path, full_path):
 
 def process_text_file(file_path, writer):
     try:
-        # First, try reading with UTF-8
         with open(file_path, 'r', encoding='utf-8') as text_file:
             text_content = text_file.read()
     except UnicodeDecodeError:
-        # If UTF-8 fails, try another encoding, e.g., ISO-8859-1 or windows-1252
         try:
             with open(file_path, 'r', encoding='windows-1252') as text_file:
                 text_content = text_file.read()
         except UnicodeDecodeError:
-            # Log an error if second attempt fails
             logging.error(f"Could not read file {file_path} with either UTF-8 or Windows-1252 encoding. Skipping file.")
             return
 
     file_name = os.path.basename(file_path)
-    relative_path = get_relative_path(path_to_files, file_path)
     escaped_name = escape(file_name)
     escaped_text_content = escape(text_content)
 
     writer.write("\t<file>\n")
     writer.write(f"\t\t<name>{escaped_name}</name>\n")
-    writer.write(f"\t\t<path>{escape(relative_path)}</path>\n")
     writer.write("\t\t<page>\n")
     writer.write(f"{escaped_text_content}\n")
     writer.write("\t\t</page>\n")
@@ -305,20 +301,18 @@ def convert_pdf_to_text(pdf_file_path, writer):
     try:
         pdf_document = fitz.open(pdf_file_path)
         file_name = os.path.basename(pdf_file_path)
-        relative_path = get_relative_path(path_to_files, pdf_file_path)
         escaped_name = escape(file_name)
 
         writer.write("\t<file>\n")
         writer.write(f"\t\t<name>{escaped_name}</name>\n")
-        writer.write(f"\t\t<path>{escape(relative_path)}</path>\n")
 
-        for page_num in range(len(pdf_document)):
-            page = pdf_document.load_page(page_num)
+        for page in pdf_document:
             text = page.get_text()
-            escaped_text = escape(text)
-            writer.write("\t\t<page>\n")
-            writer.write(f"{escaped_text}\n")
-            writer.write("\t\t</page>\n")
+            cleaned_text = re.sub(r'[^\x20-\x7E]+', '', text)
+            sanitized_text = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]", "", cleaned_text)
+            trimmed_text = sanitized_text.strip()  # Trim leading and trailing whitespace
+
+            writer.write(f"\t\t<page>{escape(trimmed_text)}</page>\n")
 
         writer.write("\t</file>\n")
         pdf_document.close()

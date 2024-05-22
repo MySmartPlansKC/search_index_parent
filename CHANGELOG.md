@@ -2,6 +2,13 @@
 
 # Changelog
 
+## [1.2.0] - 2024-05-21
+### Fixed
+- Corrected file processing logic.
+- Revamped logging system to properly track files.
+
+---
+
 ## [1.1.5] - 2024-05-17
 ### Added
 - Added file lock for system process to ensure file access
